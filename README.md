@@ -1,6 +1,6 @@
 # tiny-fastapi-di
 
-Production-ready async dependency injection in ~170 lines. FastAPI-compatible patterns, minimal code, nothing that can break.
+Production-ready async dependency injection in ~170 lines. FastAPI-compatible patterns, minimal code, no hidden complexity.
 
 ## Installation
 

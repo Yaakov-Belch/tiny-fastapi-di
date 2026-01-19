@@ -16,7 +16,11 @@ class TinyDiCtx:
 
 #### Methods
 
-##### `async call_fn(fn, fn_map=None, validator=None, **kwargs) -> Any`
+#### **`call_fn`**
+
+```python
+async def call_fn(fn, fn_map=None, validator=None, **kwargs) -> Any
+```
 
 Call a function with dependency injection. This is the main entry point.
 
@@ -36,7 +40,11 @@ result = await ctx.call_fn(my_function, validator=my_validator)
 
 Parameters are merged with the context's existing maps. Cleanup of yield-based dependencies runs automatically.
 
-##### `with_maps(fn_map=..., validator=..., **kwargs) -> TinyDiCtx`
+#### **`with_maps`**
+
+```python
+def with_maps(fn_map=..., validator=..., **kwargs) -> TinyDiCtx
+```
 
 Create a new context with merged maps. The original context is not modified.
 
