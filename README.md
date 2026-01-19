@@ -1,20 +1,20 @@
-# tiny-di
+# tiny-fastapi-di
 
 Minimal async dependency injection in ~160 lines. FastAPI-compatible patterns without the framework.
 
 ## Installation
 
 ```bash
-pip install tiny-di
+pip install tiny-fastapi-di
 
 # With Pydantic validation support
-pip install tiny-di[pydantic]
+pip install tiny-fastapi-di[pydantic]
 ```
 
 ## Quick Start
 
 ```python
-from tiny_di import Depends, empty_di_ctx
+from tiny_fastapi_di import Depends, empty_di_ctx
 
 def get_db():
     return "database_connection"
@@ -34,7 +34,7 @@ All FastAPI DI patterns work:
 
 ```python
 from typing import Annotated
-from tiny_di import Depends, Security, empty_di_ctx
+from tiny_fastapi_di import Depends, Security, empty_di_ctx
 
 # Basic dependency
 async def endpoint(db = Depends(get_db)): ...
@@ -79,7 +79,7 @@ result = await ctx.call_fn(my_endpoint)  # Uses mock_db
 ## Pydantic Validation
 
 ```python
-from tiny_di.pydantic import pydantic_di_ctx
+from tiny_fastapi_di.pydantic import pydantic_di_ctx
 
 async def endpoint(user: User):  # User is a Pydantic model
     return user
@@ -90,7 +90,7 @@ result = await ctx.call_fn(endpoint)  # Returns User instance
 
 ## Feature Comparison with FastAPI
 
-| Feature | FastAPI | tiny-di |
+| Feature | FastAPI | tiny-fastapi-di |
 |---------|---------|---------|
 | `Depends()` | ✅ | ✅ |
 | `Depends(use_cache=False)` | ✅ | ✅ |

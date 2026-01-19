@@ -1,5 +1,5 @@
 [project]
-name = "tiny-di"
+name = "tiny-fastapi-di"
 version = "0.1.0"
 description = "Minimal async dependency injection, FastAPI-compatible in ~160 lines"
 readme = "README.md"
@@ -16,7 +16,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tiny_di"]
+packages = ["src/tiny_fastapi_di"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

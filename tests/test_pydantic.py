@@ -3,8 +3,8 @@ from typing import Annotated
 
 from pydantic import BaseModel
 
-from tiny_di import Depends
-from tiny_di.pydantic import pydantic_di_ctx
+from tiny_fastapi_di import Depends
+from tiny_fastapi_di.pydantic import pydantic_di_ctx
 
 
 class User(BaseModel):

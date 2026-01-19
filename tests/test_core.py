@@ -1,7 +1,7 @@
 import pytest
 from typing import Annotated
 
-from tiny_di import Depends, Security, TinyDiCtx, empty_di_ctx
+from tiny_fastapi_di import Depends, Security, TinyDiCtx, empty_di_ctx
 
 
 # --- Basic Depends ---
