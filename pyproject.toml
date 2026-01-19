@@ -1,6 +1,6 @@
 [project]
 name = "tiny-fastapi-di"
-version = "0.1.0"
+version = "0.1.1"
 description = "Production-ready async dependency injection. FastAPI-compatible patterns in ~170 lines."
 readme = "README.md"
 license = "MIT"
