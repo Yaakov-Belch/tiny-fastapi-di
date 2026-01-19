@@ -1,8 +1,9 @@
 site_name: tiny-fastapi-di
-site_description: Minimal async dependency injection, FastAPI-compatible
+site_description: Production-ready async dependency injection. No hidden complexity.
 site_url: https://yaakov-belch.github.io/tiny-fastapi-di/
 repo_url: https://github.com/Yaakov-Belch/tiny-fastapi-di
 repo_name: Yaakov-Belch/tiny-fastapi-di
+edit_uri: blob/main/
 
 theme:
   name: material
@@ -21,6 +22,7 @@ theme:
         name: Switch to light mode
   features:
     - content.code.copy
+    - content.action.view
     - navigation.sections
     - navigation.expand
     - toc.follow
@@ -35,6 +37,8 @@ markdown_extensions:
   - pymdownx.details
   - toc:
       permalink: true
+  - attr_list
+  - md_in_html
 
 nav:
   - Home: index.md
