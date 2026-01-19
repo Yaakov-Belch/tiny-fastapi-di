@@ -9,7 +9,7 @@ dependencies = []
 keywords = ["dependency-injection", "async", "fastapi", "di", "ioc"]
 authors = [
     { name = "Yaakov Belch", email = "yaakov.belch@gmail.com" },
-    { name = "Claude (Anthropic)", email = "noreply@anthropic.com" },
+    { name = "Claude (Anthropic)" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
