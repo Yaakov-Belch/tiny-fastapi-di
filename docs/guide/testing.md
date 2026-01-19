@@ -20,9 +20,9 @@ async def test_get_user_count():
     def mock_database():
         return MockDatabase(user_count=42)
 
-    ctx = empty_di_ctx.with_maps(fn_map={get_database: mock_database})
-    result = await ctx.call_fn(get_user_count)
-    assert result == 42
+    async with empty_di_ctx.with_maps(fn_map={get_database: mock_database}) as ctx:
+        result = await ctx.call_fn(get_user_count)
+        assert result == 42
 ```
 
 ## Value Injection for Tests
@@ -34,9 +34,9 @@ async def process_request(request_id: int, user_id: int):
     return f"Request {request_id} for user {user_id}"
 
 async def test_process_request():
-    ctx = empty_di_ctx.with_maps(request_id=999, user_id=123)
-    result = await ctx.call_fn(process_request)
-    assert result == "Request 999 for user 123"
+    async with empty_di_ctx.with_maps(request_id=999, user_id=123) as ctx:
+        result = await ctx.call_fn(process_request)
+        assert result == "Request 999 for user 123"
 ```
 
 ## Combining Substitution and Injection
@@ -45,18 +45,18 @@ async def test_process_request():
 def get_api_client():
     return RealAPIClient()
 
-async def fetch_data(client = Depends(get_api_client), endpoint: str):
+async def fetch_data(endpoint: str, client = Depends(get_api_client)):
     return client.get(endpoint)
 
 async def test_fetch_data():
     mock_client = MockAPIClient(responses={"/users": [{"id": 1}]})
 
-    ctx = empty_di_ctx.with_maps(
+    async with empty_di_ctx.with_maps(
         fn_map={get_api_client: lambda: mock_client},
         endpoint="/users"
-    )
-    result = await ctx.call_fn(fetch_data)
-    assert result == [{"id": 1}]
+    ) as ctx:
+        result = await ctx.call_fn(fetch_data)
+        assert result == [{"id": 1}]
 ```
 
 ## Testing Cleanup

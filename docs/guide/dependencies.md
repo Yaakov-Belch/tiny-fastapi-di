@@ -51,6 +51,8 @@ async def my_function(db: Annotated[DatabaseService, Depends()]):
 Dependencies can depend on other dependencies:
 
 ```python
+from tiny_fastapi_di import Depends, empty_di_ctx
+
 def get_config():
     return {"db_url": "postgres://localhost"}
 
@@ -61,7 +63,8 @@ async def get_users(db: str = Depends(get_db)):
     return f"Users from {db}"
 
 # Resolves: get_config -> get_db -> get_users
-await ctx.call_fn(get_users)
+async with empty_di_ctx.with_maps() as ctx:
+    await ctx.call_fn(get_users)
 ```
 
 ## Async Dependencies

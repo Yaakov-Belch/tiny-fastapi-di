@@ -22,9 +22,9 @@ async def greet_user(user: User):
     return f"Hello, {user.name}!"
 
 # Pass a dict - it gets validated and converted to User
-ctx = pydantic_di_ctx.with_maps(user={"name": "Alice", "age": 30})
-result = await ctx.call_fn(greet_user)
-print(result)  # "Hello, Alice!"
+async with pydantic_di_ctx.with_maps(user={"name": "Alice", "age": 30}) as ctx:
+    result = await ctx.call_fn(greet_user)
+    print(result)  # "Hello, Alice!"
 ```
 
 ## Type Coercion
@@ -36,9 +36,9 @@ async def process(count: int, ratio: float):
     return count * ratio
 
 # Strings are coerced to int/float
-ctx = pydantic_di_ctx.with_maps(count="42", ratio="1.5")
-result = await ctx.call_fn(process)
-print(result)  # 63.0
+async with pydantic_di_ctx.with_maps(count="42", ratio="1.5") as ctx:
+    result = await ctx.call_fn(process)
+    print(result)  # 63.0
 ```
 
 ## Validation Errors
@@ -51,13 +51,12 @@ from pydantic import ValidationError
 async def process(user: User):
     return user
 
-ctx = pydantic_di_ctx.with_maps(user={"name": "Alice", "age": "not a number"})
-
-try:
-    await ctx.call_fn(process)
-except ValidationError as e:
-    print(e)
-    # age: Input should be a valid integer
+async with pydantic_di_ctx.with_maps(user={"name": "Alice", "age": "not a number"}) as ctx:
+    try:
+        await ctx.call_fn(process)
+    except ValidationError as e:
+        print(e)
+        # age: Input should be a valid integer
 ```
 
 ## With Dependencies
@@ -74,8 +73,9 @@ def get_user_data():
 async def greet(user: Annotated[User, Depends(get_user_data)]):
     return f"Hello, {user.name}!"
 
-result = await pydantic_di_ctx.call_fn(greet)
-print(result)  # "Hello, Bob!"
+async with pydantic_di_ctx.with_maps() as ctx:
+    result = await ctx.call_fn(greet)
+    print(result)  # "Hello, Bob!"
 ```
 
 ## Custom Validator

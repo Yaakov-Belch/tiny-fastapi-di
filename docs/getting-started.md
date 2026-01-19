@@ -14,10 +14,16 @@
     uv pip install tiny-fastapi-di
     ```
 
-=== "With Pydantic"
+=== "pip with Pydantic"
 
     ```bash
     pip install tiny-fastapi-di[pydantic]
+    ```
+
+=== "uv with Pydantic"
+
+    ```bash
+    uv pip install tiny-fastapi-di[pydantic]
     ```
 
 ## Your First Dependency
@@ -35,21 +41,13 @@ async def get_users(db: dict = Depends(get_database)):
 
 # Run it
 async def main():
-    ctx = empty_di_ctx.with_maps()
-    result = await ctx.call_fn(get_users)
-    print(result)  # "Fetching users from localhost"
-```
-
-## Using the Context Manager
-
-For proper cleanup of resources (database connections, file handles, etc.), use the async context manager:
-
-```python
-async def main():
     async with empty_di_ctx.with_maps() as ctx:
         result = await ctx.call_fn(get_users)
-        # Resources are cleaned up when exiting the context
+        print(result)  # "Fetching users from localhost"
 ```
+
+!!! warning "Always use `async with`"
+    Always wrap `call_fn()` in an `async with` block. This ensures that yield dependencies (database connections, file handles, etc.) are properly cleaned up. Without `async with`, cleanup code after `yield` will never run.
 
 ## Injecting Values
 
@@ -60,9 +58,9 @@ async def process_request(request_id: int, user_id: int):
     return f"Processing request {request_id} for user {user_id}"
 
 async def main():
-    ctx = empty_di_ctx.with_maps(request_id=123, user_id=456)
-    result = await ctx.call_fn(process_request)
-    print(result)  # "Processing request 123 for user 456"
+    async with empty_di_ctx.with_maps(request_id=123, user_id=456) as ctx:
+        result = await ctx.call_fn(process_request)
+        print(result)  # "Processing request 123 for user 456"
 ```
 
 ## Next Steps
