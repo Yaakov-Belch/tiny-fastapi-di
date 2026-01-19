@@ -18,19 +18,17 @@ async def query_users(db = Depends(get_db_connection)):
     return db.query("SELECT * FROM users")
 ```
 
-## Using the Context Manager
+## Automatic Cleanup
 
-Cleanup runs when exiting the async context:
+When you call `call_fn()`, cleanup runs automatically after the function returns:
 
 ```python
-async with empty_di_ctx.with_maps() as ctx:
-    result = await ctx.call_fn(query_users)
-    # Connection is open here
-# Connection is closed here (after exiting the context)
+# Cleanup runs automatically after call_fn returns
+result = await empty_di_ctx.call_fn(query_users)
+# Connection is already closed here
 ```
 
-!!! warning
-    If you don't use `async with`, cleanup will **not** run automatically.
+This is the recommended pattern. You don't need to manage context manually.
 
 ## Async Yield Dependencies
 
@@ -65,8 +63,7 @@ def resource_b():
 async def my_function(a = Depends(resource_a), b = Depends(resource_b)):
     return f"{a}{b}"
 
-async with ctx as c:
-    await c.call_fn(my_function)
+await empty_di_ctx.call_fn(my_function)
 
 # Output:
 # Setup A
@@ -92,14 +89,34 @@ async def my_function(a = Depends(resource_a), b = Depends(resource_b)):
     return f"{a}{b}"
 
 try:
-    async with ctx as c:
-        await c.call_fn(my_function)
+    await empty_di_ctx.call_fn(my_function)
 except ValueError as e:
-    # ValueError is raised (last cleanup)
-    # e.__context__ is TypeError (previous cleanup)
+    # ValueError is raised (last cleanup to fail)
+    # e.__context__ is TypeError (previous cleanup failure)
     print(f"Error: {e}")
     print(f"Caused by: {e.__context__}")
 ```
 
-!!! info
-    This matches Python's context manager behavior - all `__exit__` methods run, and exceptions are chained via `__context__`.
+This matches Python's context manager behavior - all cleanup runs, and exceptions are chained via `__context__`.
+
+## Yield Exactly Once
+
+Dependencies must yield exactly once. The code before `yield` runs during setup, and the code after `yield` runs during cleanup.
+
+```python
+# Correct: yields exactly once
+def get_resource():
+    resource = acquire()
+    try:
+        yield resource
+    finally:
+        release(resource)
+
+# Wrong: yields twice - cleanup code won't run correctly
+def bad_resource():
+    yield "first"
+    yield "second"  # This breaks cleanup
+    actual_cleanup()  # Never runs
+```
+
+If a dependency yields more than once, the cleanup code after the second yield will not execute.

@@ -63,8 +63,7 @@ async def get_users(db: str = Depends(get_db)):
     return f"Users from {db}"
 
 # Resolves: get_config -> get_db -> get_users
-async with empty_di_ctx.with_maps() as ctx:
-    await ctx.call_fn(get_users)
+result = await empty_di_ctx.call_fn(get_users)
 ```
 
 ## Async Dependencies
@@ -73,31 +72,12 @@ Dependencies can be async:
 
 ```python
 async def get_user_from_api():
-    # Imagine an async HTTP call here
+    # Async HTTP call
     return {"id": 1, "name": "Alice"}
 
 async def process_user(user: dict = Depends(get_user_from_api)):
     return f"Processing {user['name']}"
 ```
-
-## `Security()` for OpenAPI Metadata
-
-`Security` is a subclass of `Depends` with an additional `scopes` field:
-
-```python
-from tiny_fastapi_di import Security
-
-def get_current_user():
-    return "authenticated_user"
-
-async def protected_endpoint(
-    user: str = Security(get_current_user, scopes=["read", "write"])
-):
-    return f"Hello, {user}"
-```
-
-!!! note
-    At runtime, `Security` behaves identically to `Depends`. The `scopes` field is metadata for OpenAPI documentation tooling.
 
 ## Disabling Cache
 

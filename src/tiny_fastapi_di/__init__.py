@@ -1,6 +1,5 @@
 from .core import (
     Depends,
-    Security,
     TinyDiCtx,
     TypeValidator,
     empty_di_ctx,
@@ -8,7 +7,6 @@ from .core import (
 
 __all__ = [
     "Depends",
-    "Security",
     "TinyDiCtx",
     "TypeValidator",
     "empty_di_ctx",

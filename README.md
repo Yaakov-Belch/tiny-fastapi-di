@@ -1,13 +1,13 @@
 # tiny-fastapi-di
 
-Minimal async dependency injection in ~160 lines. FastAPI-compatible patterns without the framework.
+Production-ready async dependency injection in ~170 lines. FastAPI-compatible patterns, minimal code, nothing that can break.
 
 ## Installation
 
 ```bash
 pip install tiny-fastapi-di
 
-# With Pydantic validation support
+# With Pydantic validation
 pip install tiny-fastapi-di[pydantic]
 ```
 
@@ -22,19 +22,22 @@ def get_db():
 async def get_user(db: str = Depends(get_db)):
     return f"User from {db}"
 
-async def main():
-    async with empty_di_ctx.with_maps() as ctx:
-        user = await ctx.call_fn(get_user)
-        print(user)  # "User from database_connection"
+# One call handles context and cleanup
+result = await empty_di_ctx.call_fn(get_user)
 ```
 
-## Features
+## Why tiny-fastapi-di?
 
-All FastAPI DI patterns work:
+- **Production-ready**: ~170 lines of auditable code. No hidden complexity.
+- **Familiar API**: Same `Depends()` pattern as FastAPI
+- **Framework-agnostic**: Use in CLI tools, workers, pipelines, anywhere
+- **Correct by default**: Cleanup runs automatically, circular dependencies detected
+
+## Core Features
 
 ```python
 from typing import Annotated
-from tiny_fastapi_di import Depends, Security, empty_di_ctx
+from tiny_fastapi_di import Depends, empty_di_ctx
 
 # Basic dependency
 async def endpoint(db = Depends(get_db)): ...
@@ -42,16 +45,13 @@ async def endpoint(db = Depends(get_db)): ...
 # Annotated syntax
 async def endpoint(db: Annotated[DB, Depends(get_db)]): ...
 
-# Infer from type annotation
+# Infer callable from type
 async def endpoint(db: Annotated[DB, Depends()]): ...
 
 # Disable caching
 async def endpoint(db = Depends(get_db, use_cache=False)): ...
 
-# Security (for OpenAPI metadata)
-async def endpoint(user = Security(get_user, scopes=["read"])): ...
-
-# Yield dependencies (cleanup)
+# Yield dependencies with automatic cleanup
 def get_db():
     db = connect()
     try:
@@ -62,18 +62,17 @@ def get_db():
 
 ## Value Injection
 
-Inject values by parameter name:
-
 ```python
-ctx = empty_di_ctx.with_maps(request_id=123, user_id=456)
-result = await ctx.call_fn(my_endpoint)
+result = await empty_di_ctx.call_fn(my_endpoint, request_id=123, user_id=456)
 ```
 
 ## Dependency Substitution (Testing)
 
 ```python
-ctx = empty_di_ctx.with_maps(fn_map={real_db: mock_db})
-result = await ctx.call_fn(my_endpoint)  # Uses mock_db
+result = await empty_di_ctx.call_fn(
+    my_endpoint,
+    fn_map={real_db: mock_db}
+)
 ```
 
 ## Pydantic Validation
@@ -84,22 +83,20 @@ from tiny_fastapi_di.pydantic import pydantic_di_ctx
 async def endpoint(user: User):  # User is a Pydantic model
     return user
 
-ctx = pydantic_di_ctx.with_maps(user={"name": "Alice", "age": 30})
-result = await ctx.call_fn(endpoint)  # Returns User instance
+result = await pydantic_di_ctx.call_fn(endpoint, user={"name": "Alice", "age": 30})
 ```
 
-## Feature Comparison with FastAPI
+## Feature Comparison
 
 | Feature | FastAPI | tiny-fastapi-di |
-|---------|---------|---------|
+|---------|---------|-----------------|
 | `Depends()` | ✅ | ✅ |
 | `Depends(use_cache=False)` | ✅ | ✅ |
 | `Annotated[T, Depends()]` | ✅ | ✅ |
 | `yield` dependencies | ✅ | ✅ |
 | Async dependencies | ✅ | ✅ |
-| `Security(scopes=[...])` | ✅ | ✅ |
 | Circular detection | ❌ | ✅ |
-| Value injection by name | ❌ | ✅ |
+| Value injection | ❌ | ✅ |
 | Dependency substitution | partial | ✅ |
 | Optional validation | ❌ | ✅ |
 

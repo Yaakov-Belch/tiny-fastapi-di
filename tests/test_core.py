@@ -1,7 +1,7 @@
 import pytest
 from typing import Annotated
 
-from tiny_fastapi_di import Depends, Security, TinyDiCtx, empty_di_ctx
+from tiny_fastapi_di import Depends, TinyDiCtx, empty_di_ctx
 
 
 # --- Basic Depends ---
@@ -95,18 +95,17 @@ async def test_circular_dependency_detected():
     # Patch circular_a to depend on circular_b
     circular_a.__defaults__ = (Depends(circular_b),)
 
-    with pytest.raises(RecursionError, match="Circular dependency"):
+    with pytest.raises(RecursionError, match="Circular dependency detected.*already being resolved"):
         await empty_di_ctx.call_fn(circular_b)
 
 
-# --- value_map ---
+# --- value_map (kwargs injection) ---
 
 async def test_value_map_injection():
     async def my_fn(request_id: int):
         return f"Request {request_id}"
 
-    ctx = empty_di_ctx.with_maps(request_id=123)
-    result = await ctx.call_fn(my_fn)
+    result = await empty_di_ctx.call_fn(my_fn, request_id=123)
     assert result == "Request 123"
 
 
@@ -117,8 +116,7 @@ async def test_value_map_with_depends():
     async def my_fn(user: str = Depends(get_user)):
         return user
 
-    ctx = empty_di_ctx.with_maps(request_id=456)
-    result = await ctx.call_fn(my_fn)
+    result = await empty_di_ctx.call_fn(my_fn, request_id=456)
     assert result == "User for request 456"
 
 
@@ -134,8 +132,7 @@ async def test_fn_map_substitution():
     async def my_fn(db: str = Depends(real_db)):
         return db
 
-    ctx = empty_di_ctx.with_maps(fn_map={real_db: mock_db})
-    result = await ctx.call_fn(my_fn)
+    result = await empty_di_ctx.call_fn(my_fn, fn_map={real_db: mock_db})
     assert result == "mock database"
 
 
@@ -165,11 +162,9 @@ async def test_yield_cleanup():
     async def my_fn(r: str = Depends(get_resource)):
         return r
 
-    async with empty_di_ctx.with_maps() as ctx:
-        result = await ctx.call_fn(my_fn)
-        assert result == "resource"
-        assert not cleanup_called
-
+    # call_fn handles cleanup automatically
+    result = await empty_di_ctx.call_fn(my_fn)
+    assert result == "resource"
     assert cleanup_called
 
 
@@ -184,11 +179,9 @@ async def test_async_yield_cleanup():
     async def my_fn(r: str = Depends(get_resource)):
         return r
 
-    async with empty_di_ctx.with_maps() as ctx:
-        result = await ctx.call_fn(my_fn)
-        assert result == "async resource"
-        assert not cleanup_called
-
+    # call_fn handles cleanup automatically
+    result = await empty_di_ctx.call_fn(my_fn)
+    assert result == "async resource"
     assert cleanup_called
 
 
@@ -211,27 +204,13 @@ async def test_cleanup_exception_chaining():
     # LIFO cleanup: B first (TypeError), then A (ValueError)
     # Final exception is ValueError with __context__ = TypeError
     with pytest.raises(ValueError) as exc_info:
-        async with empty_di_ctx.with_maps() as ctx:
-            await ctx.call_fn(my_fn)
+        await empty_di_ctx.call_fn(my_fn)
 
     # Both cleanups ran (LIFO order)
     assert cleanup_order == ["b", "a"]
     # Exceptions are chained: ValueError.__context__ = TypeError
     assert exc_info.value.__context__ is not None
     assert isinstance(exc_info.value.__context__, TypeError)
-
-
-# --- Security ---
-
-async def test_security_is_depends():
-    def get_user():
-        return "authenticated_user"
-
-    async def my_fn(user: str = Security(get_user, scopes=["read", "write"])):
-        return user
-
-    result = await empty_di_ctx.call_fn(my_fn)
-    assert result == "authenticated_user"
 
 
 # --- Default Values ---
@@ -248,7 +227,15 @@ async def test_missing_required_arg_raises():
     async def my_fn(required_arg: int):
         return required_arg
 
-    with pytest.raises(TypeError, match="No value provided"):
+    with pytest.raises(TypeError, match="No value provided.*call_fn"):
+        await empty_di_ctx.call_fn(my_fn)
+
+
+async def test_non_callable_depends_raises():
+    async def my_fn(value: int = Depends(42)):  # type: ignore
+        return value
+
+    with pytest.raises(TypeError, match="requires a callable.*got int"):
         await empty_di_ctx.call_fn(my_fn)
 
 
@@ -258,6 +245,6 @@ async def test_context_self_injection():
     async def my_fn(ctx: TinyDiCtx = Depends()):
         return ctx
 
-    ctx = empty_di_ctx.with_maps()
-    result = await ctx.call_fn(my_fn)
-    assert result is ctx
+    result = await empty_di_ctx.call_fn(my_fn)
+    # The injected context is the scoped context created by call_fn
+    assert isinstance(result, TinyDiCtx)

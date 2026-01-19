@@ -1,7 +1,7 @@
 [project]
 name = "tiny-fastapi-di"
 version = "0.1.0"
-description = "Minimal async dependency injection, FastAPI-compatible in ~160 lines"
+description = "Production-ready async dependency injection. FastAPI-compatible patterns in ~170 lines."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -28,3 +28,9 @@ line-length = 100
 
 [tool.mypy]
 strict = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+]

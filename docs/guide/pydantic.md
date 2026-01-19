@@ -8,7 +8,7 @@ pip install tiny-fastapi-di[pydantic]
 
 ## Using `pydantic_di_ctx`
 
-The `pydantic_di_ctx` comes with a validator that automatically coerces and validates values using Pydantic:
+The `pydantic_di_ctx` automatically coerces and validates values using Pydantic:
 
 ```python
 from pydantic import BaseModel
@@ -22,9 +22,11 @@ async def greet_user(user: User):
     return f"Hello, {user.name}!"
 
 # Pass a dict - it gets validated and converted to User
-async with pydantic_di_ctx.with_maps(user={"name": "Alice", "age": 30}) as ctx:
-    result = await ctx.call_fn(greet_user)
-    print(result)  # "Hello, Alice!"
+result = await pydantic_di_ctx.call_fn(
+    greet_user,
+    user={"name": "Alice", "age": 30}
+)
+print(result)  # "Hello, Alice!"
 ```
 
 ## Type Coercion
@@ -36,9 +38,12 @@ async def process(count: int, ratio: float):
     return count * ratio
 
 # Strings are coerced to int/float
-async with pydantic_di_ctx.with_maps(count="42", ratio="1.5") as ctx:
-    result = await ctx.call_fn(process)
-    print(result)  # 63.0
+result = await pydantic_di_ctx.call_fn(
+    process,
+    count="42",
+    ratio="1.5"
+)
+print(result)  # 63.0
 ```
 
 ## Validation Errors
@@ -51,12 +56,14 @@ from pydantic import ValidationError
 async def process(user: User):
     return user
 
-async with pydantic_di_ctx.with_maps(user={"name": "Alice", "age": "not a number"}) as ctx:
-    try:
-        await ctx.call_fn(process)
-    except ValidationError as e:
-        print(e)
-        # age: Input should be a valid integer
+try:
+    await pydantic_di_ctx.call_fn(
+        process,
+        user={"name": "Alice", "age": "not a number"}
+    )
+except ValidationError as e:
+    print(e)
+    # age: Input should be a valid integer
 ```
 
 ## With Dependencies
@@ -73,9 +80,8 @@ def get_user_data():
 async def greet(user: Annotated[User, Depends(get_user_data)]):
     return f"Hello, {user.name}!"
 
-async with pydantic_di_ctx.with_maps() as ctx:
-    result = await ctx.call_fn(greet)
-    print(result)  # "Hello, Bob!"
+result = await pydantic_di_ctx.call_fn(greet)
+print(result)  # "Hello, Bob!"
 ```
 
 ## Custom Validator
@@ -83,7 +89,7 @@ async with pydantic_di_ctx.with_maps() as ctx:
 You can create your own validator by implementing the `TypeValidator` protocol:
 
 ```python
-from tiny_fastapi_di import empty_di_ctx, TypeValidator
+from tiny_fastapi_di import empty_di_ctx
 from inspect import Parameter
 
 class MyValidator:
@@ -94,6 +100,7 @@ class MyValidator:
         return type_(value)
 
 my_ctx = empty_di_ctx.with_maps(validator=MyValidator())
+result = await my_ctx.call_fn(my_function, data="123")
 ```
 
 ## How It Works

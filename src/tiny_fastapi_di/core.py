@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from inspect import Parameter, isasyncgen, isgenerator, isawaitable, signature
-from typing import Annotated, Any, Protocol, get_args, get_origin, runtime_checkable
+from typing import Annotated, Any, Callable, Protocol, get_args, get_origin, runtime_checkable
 
 
 @runtime_checkable
@@ -10,13 +10,8 @@ class TypeValidator(Protocol):
 
 @dataclass
 class Depends:
-    fn: callable | None = None
+    fn: Callable[..., Any] | None = None
     use_cache: bool = True
-
-
-@dataclass
-class Security(Depends):
-    scopes: list[str] = field(default_factory=list)
 
 
 no_value = object()
@@ -25,7 +20,7 @@ no_value = object()
 @dataclass
 class TinyDiCtx:
     value_map: dict[str, Any]
-    fn_map: dict[callable, callable]
+    fn_map: dict[Callable[..., Any], Callable[..., Any]]
     validator: TypeValidator | None
     _cache: dict = field(repr=False, init=False)
     _lock: set = field(repr=False, init=False, default_factory=set)
@@ -48,22 +43,56 @@ class TinyDiCtx:
             validator=validator2,
         )
 
-    async def call_fn(self, fn: callable, use_cache: bool = True):
+    async def call_fn(
+        self,
+        fn: Callable[..., Any],
+        fn_map: dict[Callable[..., Any], Callable[..., Any]] | None = None,
+        validator: TypeValidator | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Call a function with dependency injection.
+
+        This is the main entry point. Creates a scoped context and ensures
+        proper cleanup of yield-based dependencies.
+
+        Args:
+            fn: The function to call with injected dependencies.
+            fn_map: Optional function substitutions (for testing/mocking).
+            validator: Optional type validator (e.g., Pydantic).
+            **kwargs: Values to inject by parameter name.
+
+        Returns:
+            The result of calling fn with resolved dependencies.
+        """
+        fn_map_arg = no_value if fn_map is None else fn_map
+        validator_arg = no_value if validator is None else validator
+        async with self.with_maps(fn_map=fn_map_arg, validator=validator_arg, **kwargs) as ctx:
+            return await ctx._call_fn(fn)
+
+    async def _call_fn(self, fn: Callable[..., Any], use_cache: bool = True) -> Any:
+        """Internal: resolve and call a function. Use call_fn() instead."""
         if fn in self.fn_map:
             fn = self.fn_map[fn]
 
         if use_cache:
             if fn not in self._cache:
-                self._cache[fn] = await self.call_fn(fn=fn, use_cache=False)
+                self._cache[fn] = await self._call_fn(fn=fn, use_cache=False)
             return self._cache[fn]
         else:
             if fn in self._lock:
-                raise RecursionError(f"Circular dependency detected for {fn}")
+                fn_name = getattr(fn, '__name__', repr(fn))
+                raise RecursionError(
+                    f"Circular dependency detected: {fn_name}() is already being resolved. "
+                    f"Check the dependency chain for cycles."
+                )
             try:
                 self._lock.add(fn)
-                params = signature(fn).parameters.values()
+                try:
+                    params = signature(fn).parameters.values()
+                except TypeError as e:
+                    raise TypeError(f"Depends() requires a callable, got {type(fn).__name__}: {fn}") from e
                 kwargs = {
-                    p.name: await self.solve_arg(param=p)
+                    p.name: await self._solve_arg(param=p)
                     for p in params
                 }
                 result = fn(**kwargs)
@@ -81,7 +110,7 @@ class TinyDiCtx:
             finally:
                 self._lock.discard(fn)
 
-    async def solve_arg(self, param: Parameter):
+    async def _solve_arg(self, param: Parameter) -> Any:
         annotation = param.annotation
         default = param.default
 
@@ -97,14 +126,20 @@ class TinyDiCtx:
         if isinstance(default, Depends):
             fn = default.fn or annotation
             if fn is Parameter.empty:
-                raise TypeError(f"Depends() requires a callable or type annotation for '{param.name}'")
-            value = await self.call_fn(fn=fn, use_cache=default.use_cache)
+                raise TypeError(
+                    f"Depends() for parameter '{param.name}' has no callable. "
+                    f"Provide Depends(callable) or use Annotated[Type, Depends()] with a type annotation."
+                )
+            value = await self._call_fn(fn=fn, use_cache=default.use_cache)
         elif param.name in self.value_map:
             value = self.value_map[param.name]
         elif param.default is not Parameter.empty:
             value = param.default
         else:
-            raise TypeError(f"No value provided for required argument '{param.name}'")
+            raise TypeError(
+                f"No value provided for required argument '{param.name}'. "
+                f"Provide via call_fn(**kwargs), Depends() default, or parameter default."
+            )
         if self.validator is not None:
             return self.validator.validate(annotation, value)
         return value

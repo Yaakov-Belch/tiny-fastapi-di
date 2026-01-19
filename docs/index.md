@@ -1,13 +1,13 @@
 # tiny-fastapi-di
 
-**Minimal async dependency injection in ~160 lines. FastAPI-compatible patterns without the framework.**
+**Production-ready async dependency injection in ~170 lines. FastAPI-compatible patterns, minimal code, nothing that can break.**
 
 ## Why tiny-fastapi-di?
 
-- **Familiar API**: Uses the same `Depends()` pattern as FastAPI
-- **Lightweight**: ~160 lines of code, no dependencies (Pydantic optional)
-- **Framework-agnostic**: Use in CLI tools, workers, pipelines - anywhere
-- **Feature-complete**: Caching, yield cleanup, async support, circular detection
+- **Production-ready**: ~170 lines of auditable code. No hidden complexity.
+- **Familiar API**: Same `Depends()` pattern as FastAPI
+- **Framework-agnostic**: Use in CLI tools, workers, pipelines, anywhere
+- **Correct by default**: Cleanup runs automatically, circular dependencies detected
 
 ## Quick Example
 
@@ -20,10 +20,8 @@ def get_db():
 async def get_user(db: str = Depends(get_db)):
     return f"User from {db}"
 
-async def main():
-    async with empty_di_ctx.with_maps() as ctx:
-        user = await ctx.call_fn(get_user)
-        print(user)  # "User from database_connection"
+# One call handles context and cleanup
+result = await empty_di_ctx.call_fn(get_user)
 ```
 
 ## Installation

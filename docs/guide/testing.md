@@ -20,9 +20,11 @@ async def test_get_user_count():
     def mock_database():
         return MockDatabase(user_count=42)
 
-    async with empty_di_ctx.with_maps(fn_map={get_database: mock_database}) as ctx:
-        result = await ctx.call_fn(get_user_count)
-        assert result == 42
+    result = await empty_di_ctx.call_fn(
+        get_user_count,
+        fn_map={get_database: mock_database}
+    )
+    assert result == 42
 ```
 
 ## Value Injection for Tests
@@ -34,9 +36,12 @@ async def process_request(request_id: int, user_id: int):
     return f"Request {request_id} for user {user_id}"
 
 async def test_process_request():
-    async with empty_di_ctx.with_maps(request_id=999, user_id=123) as ctx:
-        result = await ctx.call_fn(process_request)
-        assert result == "Request 999 for user 123"
+    result = await empty_di_ctx.call_fn(
+        process_request,
+        request_id=999,
+        user_id=123
+    )
+    assert result == "Request 999 for user 123"
 ```
 
 ## Combining Substitution and Injection
@@ -51,12 +56,12 @@ async def fetch_data(endpoint: str, client = Depends(get_api_client)):
 async def test_fetch_data():
     mock_client = MockAPIClient(responses={"/users": [{"id": 1}]})
 
-    async with empty_di_ctx.with_maps(
+    result = await empty_di_ctx.call_fn(
+        fetch_data,
         fn_map={get_api_client: lambda: mock_client},
         endpoint="/users"
-    ) as ctx:
-        result = await ctx.call_fn(fetch_data)
-        assert result == [{"id": 1}]
+    )
+    assert result == [{"id": 1}]
 ```
 
 ## Testing Cleanup
@@ -75,12 +80,9 @@ async def test_cleanup_runs():
     async def use_resource(r = Depends(get_resource)):
         return r
 
-    async with empty_di_ctx.with_maps() as ctx:
-        result = await ctx.call_fn(use_resource)
-        assert result == "resource"
-        assert not cleanup_called  # Not yet
-
-    assert cleanup_called  # Now it's cleaned up
+    result = await empty_di_ctx.call_fn(use_resource)
+    assert result == "resource"
+    assert cleanup_called  # Cleanup ran automatically
 ```
 
 ## pytest-asyncio Example
@@ -90,15 +92,21 @@ import pytest
 from tiny_fastapi_di import Depends, empty_di_ctx
 
 @pytest.fixture
-def di_ctx():
-    return empty_di_ctx.with_maps(
-        fn_map={get_real_db: get_mock_db},
-        environment="test"
-    )
+def test_ctx():
+    return empty_di_ctx.with_maps(fn_map={get_real_db: get_mock_db})
 
 @pytest.mark.asyncio
-async def test_my_function(di_ctx):
-    async with di_ctx as ctx:
-        result = await ctx.call_fn(my_function)
-        assert result == expected_value
+async def test_my_function(test_ctx):
+    result = await test_ctx.call_fn(my_function, environment="test")
+    assert result == expected_value
 ```
+
+## Isolation
+
+Each `call_fn` invocation is isolated:
+
+- Fresh cache for each call
+- No shared state between tests
+- No global overrides to clean up
+
+This makes tests reliable and parallelizable.

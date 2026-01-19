@@ -5,28 +5,28 @@
 The `TinyDiCtx` is the heart of the dependency injection system. It holds:
 
 - **`value_map`**: Direct values to inject by parameter name
-- **`fn_map`**: Function substitutions (for testing)
+- **`fn_map`**: Function substitutions (for testing/decoupling)
 - **`validator`**: Optional type validator (e.g., Pydantic)
-- **`_cache`**: Cached dependency results (internal)
-- **`_cleanup_stack`**: Generators awaiting cleanup (internal)
 
-### Creating a Context
+Internal state (managed automatically):
+
+- **`_cache`**: Cached dependency results
+- **`_cleanup_stack`**: Generators awaiting cleanup
+
+### Using the Context
 
 ```python
 from tiny_fastapi_di import empty_di_ctx
 
-# Start with the empty context
-ctx = empty_di_ctx
+# Call a function with injected values
+result = await empty_di_ctx.call_fn(my_function, request_id=123)
 
-# Create a derived context with values
-request_ctx = ctx.with_maps(request_id=123, user_id=456)
-
-# Create another derived context with more values
-handler_ctx = request_ctx.with_maps(handler_name="process")
+# Or create a derived context for multiple calls
+test_ctx = empty_di_ctx.with_maps(fn_map={real_db: mock_db})
+result = await test_ctx.call_fn(my_function, request_id=123)
 ```
 
-!!! note
-    `with_maps()` always returns a **new** context. The original is not modified.
+`with_maps()` always returns a **new** context. The original is not modified.
 
 ## Resolution Order
 
@@ -35,23 +35,20 @@ When resolving a parameter, tiny-fastapi-di checks in this order:
 1. **`Depends()`** - If the default is a `Depends`, call the dependency
 2. **`value_map`** - If the parameter name exists in `value_map`, use that value
 3. **Default value** - If the parameter has a default, use it
-4. **Error** - Raise `TypeError` if no value can be found
+4. **Error** - Raise `TypeError` with actionable guidance
 
 ```python
 async def example(
-    request_id: int,           # Required - must be in value_map (no default)
+    request_id: int,           # Required - must be in value_map
     db = Depends(get_db),      # Resolved via Depends
     timeout: int = 30,         # Uses default if not in value_map
 ):
     ...
 ```
 
-!!! note "Python syntax"
-    Required parameters (without defaults) must come before parameters with defaults. This is standard Python.
-
 ## Caching
 
-By default, dependencies are cached within a context:
+By default, dependencies are cached within a single `call_fn` invocation:
 
 ```python
 call_count = 0
@@ -71,9 +68,8 @@ async def main(a = Depends(fn_a), b = Depends(fn_b)):
     return (a, b)
 
 # get_expensive_resource is only called ONCE
-async with empty_di_ctx.with_maps() as ctx:
-    await ctx.call_fn(main)
-    assert call_count == 1
+await empty_di_ctx.call_fn(main)
+assert call_count == 1
 ```
 
 Disable caching with `use_cache=False`:
@@ -89,7 +85,7 @@ async def main(
 
 ## Circular Dependency Detection
 
-tiny-fastapi-di detects circular dependencies and raises a clear error:
+tiny-fastapi-di detects circular dependencies immediately:
 
 ```python
 def fn_a(b = Depends(fn_b)):
@@ -98,17 +94,16 @@ def fn_a(b = Depends(fn_b)):
 def fn_b(a = Depends(fn_a)):
     return a
 
-async with empty_di_ctx.with_maps() as ctx:
-    await ctx.call_fn(fn_a)
-    # Raises: RecursionError: Circular dependency detected for <function fn_a>
+await empty_di_ctx.call_fn(fn_a)
+# Raises: RecursionError: Circular dependency detected: fn_a() is already being resolved.
+# Check the dependency chain for cycles.
 ```
 
-!!! tip
-    FastAPI does not detect circular dependencies - it will stack overflow. tiny-fastapi-di catches this early with a clear error message.
+FastAPI does not detect circular dependencies (it will stack overflow). tiny-fastapi-di catches this early with a clear error message.
 
 ## Decoupling with `fn_map`
 
-The `fn_map` feature allows you to decouple code from its dependencies by mapping types to their implementations. This is powerful for:
+The `fn_map` feature maps callables to their implementations. This enables:
 
 - **Framework/plugin separation**: Plugin code sees only what it needs
 - **Testing**: Swap real implementations for mocks
@@ -136,8 +131,8 @@ async def handle_request(ctx: Annotated[RequestContext, Depends()]):
 ```
 
 ```python
-# Framework code - knows how to build RequestContext from HTTP request
-def get_request_context(request, auth_service):  # Framework dependencies
+# Framework code - knows how to build RequestContext
+def get_request_context(request, auth_service):
     user = auth_service.get_user(request.headers["Authorization"])
     return RequestContext(
         user_id=user.id,
@@ -145,16 +140,34 @@ def get_request_context(request, auth_service):  # Framework dependencies
         request_path=request.path,
     )
 
-# Register the mapping
-framework_ctx = empty_di_ctx.with_maps(
+# Plugin code runs without knowing where RequestContext comes from
+result = await empty_di_ctx.call_fn(
+    handle_request,
     fn_map={RequestContext: get_request_context},
     request=http_request,
     auth_service=auth,
 )
-
-# Plugin code runs without knowing where RequestContext comes from
-async with framework_ctx as ctx:
-    result = await ctx.call_fn(handle_request)
 ```
 
-The plugin code (`handle_request`) only sees `RequestContext` - it doesn't know about HTTP requests, authentication services, or any framework details. The framework registers how to build `RequestContext` via `fn_map`.
+The plugin code (`handle_request`) only sees `RequestContext`. It doesn't know about HTTP requests, authentication services, or any framework details.
+
+## fn_map Key Identity
+
+The `fn_map` uses callable identity (not equality) for lookup. This works reliably for:
+
+- Named functions (`def my_func(): ...`)
+- Classes (`class MyService: ...`)
+
+Be careful with:
+
+- **Lambdas**: Each `lambda` creates a new object. You can't map a lambda defined elsewhere.
+- **Bound methods**: `obj.method` creates a new object each time.
+
+If you need to map these, assign them to a variable first:
+
+```python
+my_factory = lambda: SomeService()
+
+# Now you can map it
+result = await ctx.call_fn(my_fn, fn_map={my_factory: mock_factory})
+```
