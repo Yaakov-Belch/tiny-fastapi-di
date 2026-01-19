@@ -140,7 +140,7 @@
 - You want DI without a web framework
 - You need per-call isolation without global state
 - You want circular dependency detection
-- You want auditable code (~170 lines)
+- You want auditable code (~190 lines)
 
 ## Migration Guide
 

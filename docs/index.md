@@ -1,10 +1,10 @@
 # tiny-fastapi-di
 
-**Production-ready async dependency injection in ~170 lines. FastAPI-compatible patterns, minimal code, no hidden complexity.**
+**Production-ready async dependency injection in ~190 lines. FastAPI-compatible patterns, minimal code, no hidden complexity.**
 
 ## Why tiny-fastapi-di?
 
-- **Production-ready**: ~170 lines of auditable code. No hidden complexity.
+- **Production-ready**: ~190 lines of auditable code. No hidden complexity.
 - **Familiar API**: Same `Depends()` pattern as FastAPI
 - **Framework-agnostic**: Use in CLI tools, workers, pipelines, anywhere
 - **Correct by default**: Cleanup runs automatically, circular dependencies detected

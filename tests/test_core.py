@@ -248,3 +248,73 @@ async def test_context_self_injection():
     result = await empty_di_ctx.call_fn(my_fn)
     # The injected context is the scoped context created by call_fn
     assert isinstance(result, TinyDiCtx)
+
+
+# --- with_maps ---
+
+async def test_with_maps_fn_map_only():
+    def real_dep():
+        return "real"
+
+    def mock_dep():
+        return "mock"
+
+    async def my_fn(val: str = Depends(real_dep)):
+        return val
+
+    ctx = empty_di_ctx.with_maps(fn_map={real_dep: mock_dep})
+    result = await ctx.call_fn(my_fn)
+    assert result == "mock"
+
+
+async def test_with_maps_value_map_only():
+    async def my_fn(request_id: int):
+        return request_id
+
+    ctx = empty_di_ctx.with_maps(request_id=999)
+    result = await ctx.call_fn(my_fn)
+    assert result == 999
+
+
+async def test_with_maps_immutability():
+    """Verify with_maps returns a new context without modifying the original."""
+    original = empty_di_ctx
+
+    def real_dep():
+        return "real"
+
+    def mock_dep():
+        return "mock"
+
+    derived = original.with_maps(fn_map={real_dep: mock_dep}, user_id=123)
+
+    # Original should be unchanged
+    assert original.value_map == {}
+    assert original.fn_map == {}
+    assert original.validator is None
+
+    # Derived should have the new values
+    assert derived.fn_map == {real_dep: mock_dep}
+    assert derived.value_map == {"user_id": 123}
+
+
+async def test_with_maps_merges_existing():
+    """Verify with_maps merges with existing maps."""
+    def dep_a():
+        return "a"
+
+    def dep_b():
+        return "b"
+
+    def mock_a():
+        return "mock_a"
+
+    def mock_b():
+        return "mock_b"
+
+    ctx1 = empty_di_ctx.with_maps(fn_map={dep_a: mock_a}, val1=1)
+    ctx2 = ctx1.with_maps(fn_map={dep_b: mock_b}, val2=2)
+
+    # ctx2 should have both fn_map entries and both value_map entries
+    assert ctx2.fn_map == {dep_a: mock_a, dep_b: mock_b}
+    assert ctx2.value_map == {"val1": 1, "val2": 2}

@@ -1,6 +1,6 @@
 # API Reference
 
-[:fontawesome-brands-github: **View the Source** (~170 lines)](https://github.com/Yaakov-Belch/tiny-fastapi-di/blob/main/src/tiny_fastapi_di/core.py){ .md-button }
+[:fontawesome-brands-github: **View the Source** (~190 lines)](https://github.com/Yaakov-Belch/tiny-fastapi-di/blob/main/src/tiny_fastapi_di/){ .md-button }
 
 ---
 

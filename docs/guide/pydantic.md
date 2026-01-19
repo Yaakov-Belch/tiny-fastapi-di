@@ -118,7 +118,7 @@ from pydantic import TypeAdapter
 
 @dataclass
 class CachingPydanticValidator:
-    _cache: dict[type, TypeAdapter] = field(default_factory=dict)
+    _cache: dict[type, TypeAdapter] = field(repr=False, init=False, default_factory=dict)
 
     def validate(self, type_: type, value):
         if type_ is Parameter.empty:
