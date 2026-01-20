@@ -17,13 +17,12 @@ class DependsProtocol(Protocol):
     - FastAPI's Depends
     - Docket's Depends
 
-    Attributes:
+    Attribute:
         dependency: The callable to invoke for this dependency. May be None
             if the callable should be inferred from the type annotation.
 
-    Optional attributes (not declared in protocol, checked at runtime):
+    Optional attribute (not declared in protocol, checked at runtime):
         use_cache: bool - Whether to cache the result (default: True if not present)
-        scope: Any - FastAPI's scope parameter (ignored by tiny-fastapi-di)
     """
 
     dependency: Callable[..., Any] | None
@@ -31,13 +30,7 @@ class DependsProtocol(Protocol):
 
 @dataclass
 class Depends:
-    """Marks a parameter as a dependency to be resolved by TinyDiCtx.
-
-    Attributes:
-        dependency: The callable to invoke. If None, inferred from type annotation.
-        use_cache: Whether to cache the result within a call_fn invocation.
-        scope: Included for FastAPI compatibility. Ignored by tiny-fastapi-di.
-    """
+    """Marks a parameter as a dependency to be resolved by TinyDiCtx."""
 
     dependency: Callable[..., Any] | None = None
     use_cache: bool = True
@@ -52,15 +45,12 @@ class TinyDiCtx:
     value_map: dict[str, Any]
     fn_map: dict[Callable[..., Any], Callable[..., Any]]
     validator: TypeValidator | None
-    depends_types: tuple[type, ...] = (Depends,)
+    depends_types: tuple[DependsProtocol, ...]
     _cache: dict = field(repr=False, init=False)
     _lock: set = field(repr=False, init=False, default_factory=set)
     _cleanup_stack: list = field(repr=False, init=False, default_factory=list)
 
     def __post_init__(self):
-        # Normalize depends_types: accept single type or tuple
-        if not isinstance(self.depends_types, tuple):
-            object.__setattr__(self, "depends_types", (self.depends_types,))
         self._cache = {TinyDiCtx: self}
 
     def with_maps(self, fn_map=no_value, validator=no_value, depends_types=no_value, **kwargs):
@@ -87,7 +77,7 @@ class TinyDiCtx:
         fn: Callable[..., Any],
         fn_map: dict[Callable[..., Any], Callable[..., Any]] | None = None,
         validator: TypeValidator | None = None,
-        depends_types: tuple[type, ...] | None = None,
+        depends_types: tuple[DependsProtocol, ...] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Call a function with dependency injection.
@@ -168,7 +158,6 @@ class TinyDiCtx:
                     break
 
         if isinstance(default, self.depends_types):
-            # Extract callable: 'dependency' (FastAPI/Docket/tiny-fastapi-di)
             fn = getattr(default, "dependency", None) or annotation
             if fn is Parameter.empty:
                 raise TypeError(

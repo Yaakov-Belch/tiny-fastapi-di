@@ -430,21 +430,6 @@ async def test_depends_types_multiple_foreign_classes():
     assert result == "ab"
 
 
-async def test_depends_types_single_type_normalized_to_tuple():
-    """Test that a single type is normalized to a tuple internally."""
-
-    def get_value():
-        return 42
-
-    async def my_fn(value: int = Depends(get_value)):
-        return value
-
-    # Pass single type instead of tuple - should be normalized
-    ctx = TinyDiCtx(value_map={}, fn_map={}, validator=None, depends_types=Depends)
-    result = await ctx.call_fn(my_fn)
-    assert result == 42
-
-
 async def test_depends_types_infer_callable_from_type():
     """Test that foreign Depends with None dependency infers from type annotation."""
 
