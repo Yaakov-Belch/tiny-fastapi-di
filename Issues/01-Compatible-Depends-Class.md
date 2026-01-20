@@ -436,3 +436,102 @@ Renaming `fn` to `dependency` would be a breaking change but aligns with the bro
 4. Implement the configurable `depends_types`
 5. Update documentation with new patterns
 6. Consider providing a `compat` module in a future version
+● Session Retrospective                                                                      
+                                                                                             
+  What Slowed Us Down                                                                        
+                                                                                             
+  1. Research was scattered - Multiple web searches/fetches for FastAPI and Docket. A single 
+  targeted GitHub fetch would have been faster.                                              
+  2. Over-engineered the initial implementation:                                             
+    - Added scope attribute (you removed it)                                                 
+    - Added single-type normalization (you removed it)                                       
+    - Wrote verbose docstrings (you simplified them)                                         
+    - I was trying to be "helpful" but added complexity you didn't want.                     
+  3. Created a verbose issue document - 200+ lines when a focused analysis would have        
+  sufficed.                                                                                  
+  4. Implemented before validating decisions - I built features that were later removed.     
+  Should have confirmed design choices first.                                                
+                                                                                             
+  How to Improve Next Time                                                                   
+  ┌──────────────────────────┬────────────────────────────────────────────────┐              
+  │         Problem          │                    Solution                    │              
+  ├──────────────────────────┼────────────────────────────────────────────────┤              
+  │ Over-engineering         │ Ask upfront: "Minimal or flexible API?"        │              
+  ├──────────────────────────┼────────────────────────────────────────────────┤              
+  │ Verbose docs             │ Ask upfront: "Documentation style preference?" │              
+  ├──────────────────────────┼────────────────────────────────────────────────┤              
+  │ Removed features         │ Propose design, get approval, then implement   │              
+  ├──────────────────────────┼────────────────────────────────────────────────┤              
+  │ Scattered research       │ One targeted fetch per source, in parallel     │              
+  ├──────────────────────────┼────────────────────────────────────────────────┤              
+  │ Test for removed feature │ Only test documented/intentional behavior      │              
+  └──────────────────────────┴────────────────────────────────────────────────┘              
+  What Worked Well                                                                           
+                                                                                             
+  - The three lenses analysis (but should use it during design, not after)                   
+  - Incremental commits with clear messages                                                  
+  - Running tests after each change                                                          
+  - The _resolve_fn/_invoke_fn refactor discussion before implementation                     
+                                                                                             
+  Key Lesson                                                                                 
+                                                                                             
+  Ask first, implement second. A 2-minute conversation about "should depends_types accept    
+  single types?" would have saved the implementation and removal cycle.                      
+                                                                                             
+❯ I appended your answer to the Issues document.  This is valuable.  Let's trace your        
+  points back to what **I** could have improved.  I see the following points:                
+  * (1) Provide you with a better web search tool (tavily).  Note:  You did your work        
+  well and even though the search took many steps, it did not take much time and             
+  produced the desired result.  But having more precise tools is important because you       
+  could have missed important details without them.                                          
+  * (2,4) The real problem is that you did not know what I really want -- and I did not      
+  know either until I saw your work.  I did not know about the `scope` attribute and I       
+  needed to make a real decision about how I want to handle it.  Your approach of making     
+  your own informed choices is right -- even when I eventually disagree.  The lever to       
+  make this more efficient is to find a way to highlight all these decisions that you        
+  took (without the decisions that I already confirmed) so that I can find them without      
+  having to review every of your changes.  Also -- I would need to document my               
+  preferences (concise vs. verbose code) in a clear way for you to find out whenever you     
+  need. Sometimes it's better to ask first, sometimes it's better to show what you           
+  think and get a feedback on the solution.  How do we decide what's best in each case?      
+  Often, we can live with the other approach.                                                
+  * I like the issue document:  I need it to improve my own work.  This is extra value       
+  created. What do you think?                                                                
+                                                                                             
+● Your reframing is insightful. Let me engage with each point:                               
+                                                                                             
+  On (2,4): "You didn't know, I didn't know"                                                 
+                                                                                             
+  This is the core insight: decisions emerge from seeing concrete work. You couldn't have    
+  told me "no scope attribute" before I showed you the research revealing it exists.         
+                                                                                             
+  When to ask first vs. show work:                                                           
+  ┌─────────────────────────────────────────┬──────────────────────────────────────────┐     
+  │                Ask First                │             Show Work First              │     
+  ├─────────────────────────────────────────┼──────────────────────────────────────────┤     
+  │ Decision affects public API contract    │ Decision is about implementation details │     
+  ├─────────────────────────────────────────┼──────────────────────────────────────────┤     
+  │ Costly to undo (breaking change)        │ Easy to undo (internal refactor)         │     
+  ├─────────────────────────────────────────┼──────────────────────────────────────────┤     
+  │ Clear alternatives with known tradeoffs │ Need to see it concrete to evaluate      │     
+  ├─────────────────────────────────────────┼──────────────────────────────────────────┤     
+  │ User has stated preferences             │ User's preference is unknown             │     
+  └─────────────────────────────────────────┴──────────────────────────────────────────┘     
+  The lever you identified: Surface decisions without requiring full review. Options:        
+                                                                                             
+  1. Decisions summary at the end of implementation: "Decisions I made: (a) added scope for  
+  FastAPI compat, (b) allowed single-type, (c) verbose docstrings"                           
+  2. Mark uncertain decisions in code with # DECISION: comments (removed after review)       
+  3. CLAUDE.md preferences: Document your style ("prefer concise docstrings", "explicit APIs 
+  over flexible ones")                                                                       
+                                                                                             
+  On the Issue Document                                                                      
+                                                                                             
+  You're right - it's valuable. It forced structured thinking about the problem before       
+  coding. The three lenses section caught tensions that would have surfaced later anyway.    
+                                                                                             
+  The document serves two purposes:                                                          
+  1. Alignment tool (before implementation)                                                  
+  2. Decision record (after implementation)                                                  
+                                                                                             
+  Both are worth the time invested.                                                          
