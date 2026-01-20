@@ -87,7 +87,7 @@ class TinyDiCtx:
 
         Args:
             fn: The function to call with injected dependencies.
-            fn_map: Optional function substitutions (for testing/mocking).
+            fn_map: Optional function substitutions for decoupling, testing, or configuration.
             validator: Optional type validator (e.g., Pydantic).
             depends_types: Tuple of Depends-like classes to recognize.
             **kwargs: Values to inject by parameter name.
