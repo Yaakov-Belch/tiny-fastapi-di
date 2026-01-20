@@ -52,5 +52,6 @@ nav:
     - Cleanup & Yield: guide/cleanup.md
     - Testing: guide/testing.md
     - Pydantic Integration: guide/pydantic.md
+    - Multi-Framework Support: guide/multi-framework.md
   - API Reference: api-reference.md
   - FastAPI Comparison: fastapi-comparison.md

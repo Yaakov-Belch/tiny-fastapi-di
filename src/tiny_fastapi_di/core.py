@@ -8,10 +8,40 @@ class TypeValidator(Protocol):
     def validate(self, type_: type, value: Any) -> Any: ...
 
 
+class DependsProtocol(Protocol):
+    """Protocol for Depends-like classes from any framework.
+
+    This protocol defines the minimal interface that a Depends class must have
+    to be recognized by TinyDiCtx. It is compatible with:
+    - tiny-fastapi-di's Depends
+    - FastAPI's Depends
+    - Docket's Depends
+
+    Attributes:
+        dependency: The callable to invoke for this dependency. May be None
+            if the callable should be inferred from the type annotation.
+
+    Optional attributes (not declared in protocol, checked at runtime):
+        use_cache: bool - Whether to cache the result (default: True if not present)
+        scope: Any - FastAPI's scope parameter (ignored by tiny-fastapi-di)
+    """
+
+    dependency: Callable[..., Any] | None
+
+
 @dataclass
 class Depends:
-    fn: Callable[..., Any] | None = None
+    """Marks a parameter as a dependency to be resolved by TinyDiCtx.
+
+    Attributes:
+        dependency: The callable to invoke. If None, inferred from type annotation.
+        use_cache: Whether to cache the result within a call_fn invocation.
+        scope: Included for FastAPI compatibility. Ignored by tiny-fastapi-di.
+    """
+
+    dependency: Callable[..., Any] | None = None
     use_cache: bool = True
+    scope: Any = None  # FastAPI compatibility; ignored by tiny-fastapi-di
 
 
 no_value = object()
@@ -22,25 +52,34 @@ class TinyDiCtx:
     value_map: dict[str, Any]
     fn_map: dict[Callable[..., Any], Callable[..., Any]]
     validator: TypeValidator | None
+    depends_types: tuple[type, ...] = (Depends,)
     _cache: dict = field(repr=False, init=False)
     _lock: set = field(repr=False, init=False, default_factory=set)
     _cleanup_stack: list = field(repr=False, init=False, default_factory=list)
 
     def __post_init__(self):
+        # Normalize depends_types: accept single type or tuple
+        if not isinstance(self.depends_types, tuple):
+            object.__setattr__(self, "depends_types", (self.depends_types,))
         self._cache = {TinyDiCtx: self}
 
-    def with_maps(self, fn_map=no_value, validator=no_value, **kwargs):
+    def with_maps(self, fn_map=no_value, validator=no_value, depends_types=no_value, **kwargs):
         value_map2 = {**self.value_map, **kwargs} if kwargs else self.value_map
         fn_map2 = {**self.fn_map, **fn_map} if fn_map is not no_value else self.fn_map
         if validator is no_value:
             validator2 = self.validator
         else:
             validator2 = validator
+        if depends_types is no_value:
+            depends_types2 = self.depends_types
+        else:
+            depends_types2 = depends_types
 
         return TinyDiCtx(
             value_map=value_map2,
             fn_map=fn_map2,
             validator=validator2,
+            depends_types=depends_types2,
         )
 
     async def call_fn(
@@ -48,6 +87,7 @@ class TinyDiCtx:
         fn: Callable[..., Any],
         fn_map: dict[Callable[..., Any], Callable[..., Any]] | None = None,
         validator: TypeValidator | None = None,
+        depends_types: tuple[type, ...] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Call a function with dependency injection.
@@ -59,6 +99,7 @@ class TinyDiCtx:
             fn: The function to call with injected dependencies.
             fn_map: Optional function substitutions (for testing/mocking).
             validator: Optional type validator (e.g., Pydantic).
+            depends_types: Tuple of Depends-like classes to recognize.
             **kwargs: Values to inject by parameter name.
 
         Returns:
@@ -66,7 +107,10 @@ class TinyDiCtx:
         """
         fn_map_arg = no_value if fn_map is None else fn_map
         validator_arg = no_value if validator is None else validator
-        async with self.with_maps(fn_map=fn_map_arg, validator=validator_arg, **kwargs) as ctx:
+        depends_types_arg = no_value if depends_types is None else depends_types
+        async with self.with_maps(
+            fn_map=fn_map_arg, validator=validator_arg, depends_types=depends_types_arg, **kwargs
+        ) as ctx:
             return await ctx._call_fn(fn)
 
     async def _call_fn(self, fn: Callable[..., Any], use_cache: bool = True) -> Any:
@@ -119,18 +163,21 @@ class TinyDiCtx:
             args = get_args(annotation)
             annotation = args[0]
             for meta in args[1:]:
-                if isinstance(meta, Depends):
+                if isinstance(meta, self.depends_types):
                     default = meta
                     break
 
-        if isinstance(default, Depends):
-            fn = default.fn or annotation
+        if isinstance(default, self.depends_types):
+            # Extract callable: 'dependency' (FastAPI/Docket/tiny-fastapi-di)
+            fn = getattr(default, "dependency", None) or annotation
             if fn is Parameter.empty:
                 raise TypeError(
                     f"Depends() for parameter '{param.name}' has no callable. "
                     f"Provide Depends(callable) or use Annotated[Type, Depends()] with a type annotation."
                 )
-            value = await self._call_fn(fn=fn, use_cache=default.use_cache)
+            # Extract use_cache with default True (Docket may not have this attribute)
+            use_cache = getattr(default, "use_cache", True)
+            value = await self._call_fn(fn=fn, use_cache=use_cache)
         elif param.name in self.value_map:
             value = self.value_map[param.name]
         elif param.default is not Parameter.empty:
@@ -168,4 +215,4 @@ class TinyDiCtx:
         await self._cleanup()
 
 
-empty_di_ctx = TinyDiCtx(value_map={}, fn_map={}, validator=None)
+empty_di_ctx = TinyDiCtx(value_map={}, fn_map={}, validator=None, depends_types=(Depends,))

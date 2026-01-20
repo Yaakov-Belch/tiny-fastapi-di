@@ -140,7 +140,11 @@
 - You want DI without a web framework
 - You need per-call isolation without global state
 - You want circular dependency detection
-- You want auditable code (~190 lines)
+- You want auditable code (~220 lines)
+
+### Use Both Together
+
+tiny-fastapi-di can recognize FastAPI's `Depends` class, enabling code sharing between web servers and workers. See [Working with Multiple Frameworks](guide/multi-framework.md) for details.
 
 ## Migration Guide
 

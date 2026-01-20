@@ -318,3 +318,162 @@ async def test_with_maps_merges_existing():
     # ctx2 should have both fn_map entries and both value_map entries
     assert ctx2.fn_map == {dep_a: mock_a, dep_b: mock_b}
     assert ctx2.value_map == {"val1": 1, "val2": 2}
+
+
+# --- depends_types (multi-framework compatibility) ---
+
+
+class ForeignDepends:
+    """Simulates a foreign Depends class like FastAPI's or Docket's."""
+
+    def __init__(self, dependency=None, use_cache=True):
+        self.dependency = dependency
+        self.use_cache = use_cache
+
+
+class ForeignDependsNoCache:
+    """Simulates a Depends class without use_cache (like Docket's implicit caching)."""
+
+    def __init__(self, dependency=None):
+        self.dependency = dependency
+
+
+async def test_depends_types_with_foreign_depends():
+    """Test that TinyDiCtx can recognize foreign Depends classes."""
+
+    def get_value():
+        return 42
+
+    async def my_fn(value: int = ForeignDepends(get_value)):
+        return value * 2
+
+    # By default, ForeignDepends is not recognized - it's used as the literal default value
+    # This causes a TypeError because ForeignDepends * 2 is not valid
+    with pytest.raises(TypeError, match="unsupported operand"):
+        await empty_di_ctx.call_fn(my_fn)
+
+    # Configure context to recognize ForeignDepends
+    ctx = empty_di_ctx.with_maps(depends_types=(Depends, ForeignDepends))
+    result = await ctx.call_fn(my_fn)
+    assert result == 84
+
+
+async def test_depends_types_via_call_fn():
+    """Test that depends_types can be passed directly to call_fn."""
+
+    def get_value():
+        return 99
+
+    async def my_fn(value: int = ForeignDepends(get_value)):
+        return value
+
+    result = await empty_di_ctx.call_fn(my_fn, depends_types=(Depends, ForeignDepends))
+    assert result == 99
+
+
+async def test_depends_types_with_annotated():
+    """Test foreign Depends in Annotated syntax."""
+
+    def get_value():
+        return 123
+
+    async def my_fn(value: Annotated[int, ForeignDepends(get_value)]):
+        return value
+
+    ctx = empty_di_ctx.with_maps(depends_types=(Depends, ForeignDepends))
+    result = await ctx.call_fn(my_fn)
+    assert result == 123
+
+
+async def test_depends_types_use_cache_default_true():
+    """Test that use_cache defaults to True when not present on foreign Depends."""
+    call_count = 0
+
+    def get_value():
+        nonlocal call_count
+        call_count += 1
+        return call_count
+
+    async def fn1(v: int = ForeignDependsNoCache(get_value)):
+        return v
+
+    async def fn2(v: int = ForeignDependsNoCache(get_value)):
+        return v
+
+    async def my_fn(a: int = Depends(fn1), b: int = Depends(fn2)):
+        return a + b
+
+    ctx = empty_di_ctx.with_maps(depends_types=(Depends, ForeignDependsNoCache))
+    result = await ctx.call_fn(my_fn)
+    # get_value should only be called once due to default caching
+    assert result == 2  # 1 + 1
+    assert call_count == 1
+
+
+async def test_depends_types_multiple_foreign_classes():
+    """Test context configured with multiple foreign Depends classes."""
+
+    def get_a():
+        return "a"
+
+    def get_b():
+        return "b"
+
+    async def my_fn(
+        a: str = ForeignDepends(get_a),
+        b: str = ForeignDependsNoCache(get_b),
+    ):
+        return a + b
+
+    ctx = empty_di_ctx.with_maps(depends_types=(Depends, ForeignDepends, ForeignDependsNoCache))
+    result = await ctx.call_fn(my_fn)
+    assert result == "ab"
+
+
+async def test_depends_types_single_type_normalized_to_tuple():
+    """Test that a single type is normalized to a tuple internally."""
+
+    def get_value():
+        return 42
+
+    async def my_fn(value: int = Depends(get_value)):
+        return value
+
+    # Pass single type instead of tuple - should be normalized
+    ctx = TinyDiCtx(value_map={}, fn_map={}, validator=None, depends_types=Depends)
+    result = await ctx.call_fn(my_fn)
+    assert result == 42
+
+
+async def test_depends_types_infer_callable_from_type():
+    """Test that foreign Depends with None dependency infers from type annotation."""
+
+    class MyService:
+        def __init__(self):
+            self.value = 77
+
+    async def my_fn(svc: Annotated[MyService, ForeignDepends()]):
+        return svc.value
+
+    ctx = empty_di_ctx.with_maps(depends_types=(Depends, ForeignDepends))
+    result = await ctx.call_fn(my_fn)
+    assert result == 77
+
+
+async def test_with_maps_depends_types_inheritance():
+    """Test that depends_types is inherited through with_maps chain."""
+
+    def get_value():
+        return 42
+
+    async def my_fn(value: int = ForeignDepends(get_value)):
+        return value
+
+    # First with_maps sets depends_types
+    ctx1 = empty_di_ctx.with_maps(depends_types=(Depends, ForeignDepends))
+    # Second with_maps should inherit depends_types
+    ctx2 = ctx1.with_maps(some_value=123)
+
+    assert ctx2.depends_types == (Depends, ForeignDepends)
+    result = await ctx2.call_fn(my_fn)
+    assert result == 42

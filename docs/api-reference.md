@@ -1,6 +1,6 @@
 # API Reference
 
-[:fontawesome-brands-github: **View the Source** (~190 lines)](https://github.com/Yaakov-Belch/tiny-fastapi-di/blob/main/src/tiny_fastapi_di/){ .md-button }
+[:fontawesome-brands-github: **View the Source** (~220 lines)](https://github.com/Yaakov-Belch/tiny-fastapi-di/blob/main/src/tiny_fastapi_di/){ .md-button }
 
 ---
 
@@ -16,14 +16,22 @@ class TinyDiCtx:
     value_map: dict[str, Any]
     fn_map: dict[Callable[..., Any], Callable[..., Any]]
     validator: TypeValidator | None
+    depends_types: tuple[type, ...] = (Depends,)
 ```
+
+| Attribute | Purpose |
+|-----------|---------|
+| `value_map` | Values to inject by parameter name |
+| `fn_map` | Function substitutions (for testing/mocking) |
+| `validator` | Optional type validator (e.g., Pydantic) |
+| `depends_types` | Tuple of `Depends`-like classes to recognize |
 
 #### Methods
 
 #### **`call_fn`**
 
 ```python
-async def call_fn(fn, fn_map=None, validator=None, **kwargs) -> Any
+async def call_fn(fn, fn_map=None, validator=None, depends_types=None, **kwargs) -> Any
 ```
 
 Call a function with dependency injection. This is the main entry point.
@@ -40,6 +48,10 @@ result = await ctx.call_fn(my_function, fn_map={real_db: mock_db})
 
 # With validation
 result = await ctx.call_fn(my_function, validator=my_validator)
+
+# With multi-framework Depends recognition
+from fastapi import Depends as FastApiDepends
+result = await ctx.call_fn(my_function, depends_types=(Depends, FastApiDepends))
 ```
 
 Parameters are merged with the context's existing maps. Cleanup of yield-based dependencies runs automatically.
@@ -47,7 +59,7 @@ Parameters are merged with the context's existing maps. Cleanup of yield-based d
 #### **`with_maps`**
 
 ```python
-def with_maps(fn_map=..., validator=..., **kwargs) -> TinyDiCtx
+def with_maps(fn_map=..., validator=..., depends_types=..., **kwargs) -> TinyDiCtx
 ```
 
 Create a new context with merged maps. The original context is not modified.
@@ -61,6 +73,12 @@ test_ctx = empty_di_ctx.with_maps(
 
 # Use the derived context
 result = await test_ctx.call_fn(my_function, request_id=123)
+
+# Create a context that recognizes multiple Depends classes
+from fastapi import Depends as FastApiDepends
+multi_ctx = empty_di_ctx.with_maps(
+    depends_types=(Depends, FastApiDepends)
+)
 ```
 
 ---
@@ -72,9 +90,16 @@ Marks a parameter as a dependency.
 ```python
 @dataclass
 class Depends:
-    fn: Callable[..., Any] | None = None
+    dependency: Callable[..., Any] | None = None
     use_cache: bool = True
+    scope: Any = None  # FastAPI compatibility; ignored
 ```
+
+| Attribute | Purpose | Default |
+|-----------|---------|---------|
+| `dependency` | The callable to invoke | `None` (infer from type) |
+| `use_cache` | Cache result within a `call_fn` invocation | `True` |
+| `scope` | FastAPI compatibility (ignored by tiny-fastapi-di) | `None` |
 
 #### Usage
 
