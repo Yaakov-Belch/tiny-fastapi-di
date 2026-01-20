@@ -101,48 +101,47 @@ class TinyDiCtx:
         async with self.with_maps(
             fn_map=fn_map_arg, validator=validator_arg, depends_types=depends_types_arg, **kwargs
         ) as ctx:
-            return await ctx._call_fn(fn)
+            return await ctx._resolve_fn(fn)
 
-    async def _call_fn(self, fn: Callable[..., Any], use_cache: bool = True) -> Any:
-        """Internal: resolve and call a function. Use call_fn() instead."""
+    async def _resolve_fn(self, fn: Callable[..., Any], use_cache: bool = True) -> Any:
+        """Apply fn_map substitution and manage caching."""
         if fn in self.fn_map:
             fn = self.fn_map[fn]
-
         if use_cache:
             if fn not in self._cache:
-                self._cache[fn] = await self._call_fn(fn=fn, use_cache=False)
+                self._cache[fn] = await self._invoke_fn(fn)
             return self._cache[fn]
-        else:
-            if fn in self._lock:
-                fn_name = getattr(fn, '__name__', repr(fn))
-                raise RecursionError(
-                    f"Circular dependency detected: {fn_name}() is already being resolved. "
-                    f"Check the dependency chain for cycles."
-                )
+        return await self._invoke_fn(fn)
+
+    async def _invoke_fn(self, fn: Callable[..., Any]) -> Any:
+        """Actually call the function with resolved arguments."""
+        if fn in self._lock:
+            fn_name = getattr(fn, '__name__', repr(fn))
+            raise RecursionError(
+                f"Circular dependency detected: {fn_name}() is already being resolved. "
+                f"Check the dependency chain for cycles."
+            )
+        try:
+            self._lock.add(fn)
             try:
-                self._lock.add(fn)
-                try:
-                    params = signature(fn).parameters.values()
-                except TypeError as e:
-                    raise TypeError(f"Depends() requires a callable, got {type(fn).__name__}: {fn}") from e
-                kwargs = {
-                    p.name: await self._solve_arg(param=p)
-                    for p in params
-                }
-                result = fn(**kwargs)
-                if isgenerator(result):
-                    gen = result
-                    result = next(gen)
-                    self._cleanup_stack.append(gen)
-                elif isasyncgen(result):
-                    gen = result
-                    result = await gen.__anext__()
-                    self._cleanup_stack.append(gen)
-                elif isawaitable(result):
-                    result = await result
-                return result
-            finally:
-                self._lock.discard(fn)
+                params = signature(fn).parameters.values()
+            except TypeError as e:
+                raise TypeError(f"Depends() requires a callable, got {type(fn).__name__}: {fn}") from e
+            kwargs = {p.name: await self._solve_arg(param=p) for p in params}
+            result = fn(**kwargs)
+            if isgenerator(result):
+                gen = result
+                result = next(gen)
+                self._cleanup_stack.append(gen)
+            elif isasyncgen(result):
+                gen = result
+                result = await gen.__anext__()
+                self._cleanup_stack.append(gen)
+            elif isawaitable(result):
+                result = await result
+            return result
+        finally:
+            self._lock.discard(fn)
 
     async def _solve_arg(self, param: Parameter) -> Any:
         annotation = param.annotation
@@ -164,9 +163,8 @@ class TinyDiCtx:
                     f"Depends() for parameter '{param.name}' has no callable. "
                     f"Provide Depends(callable) or use Annotated[Type, Depends()] with a type annotation."
                 )
-            # Extract use_cache with default True (Docket may not have this attribute)
             use_cache = getattr(default, "use_cache", True)
-            value = await self._call_fn(fn=fn, use_cache=use_cache)
+            value = await self._resolve_fn(fn=fn, use_cache=use_cache)
         elif param.name in self.value_map:
             value = self.value_map[param.name]
         elif param.default is not Parameter.empty:
