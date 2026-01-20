@@ -126,13 +126,14 @@ ctx = TinyDiCtx(
 
 ## Attribute Compatibility
 
-tiny-fastapi-di extracts these attributes from any `Depends`-like class:
+tiny-fastapi-di reads these attributes from any `Depends`-like class:
 
 | Attribute | Purpose | Default |
 |-----------|---------|---------|
 | `dependency` | The callable to invoke | Required (or infer from type) |
 | `use_cache` | Whether to cache the result | `True` |
-| `scope` | FastAPI-specific scoping | Ignored |
+
+FastAPI's `scope` attribute is ignored (see [Limitations](#fastapis-scope-parameter)).
 
 This means tiny-fastapi-di works with:
 
@@ -156,13 +157,13 @@ Workers configure `depends_types` to include `FastApiDepends`.
 
 ### Option 2: Import from tiny-fastapi-di
 
-If you want minimal dependencies:
+If your shared code only runs on workers (not on FastAPI):
 
 ```python
 from tiny_fastapi_di import Depends
 ```
 
-FastAPI will still work because tiny-fastapi-di's `Depends` is compatible.
+Note: FastAPI will **not** recognize tiny-fastapi-di's `Depends`. Use this option only when the shared code is never used directly by FastAPI endpoints.
 
 ### Option 3: Conditional Import
 
